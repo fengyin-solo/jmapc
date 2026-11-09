@@ -13,6 +13,7 @@ import sseclient
 from . import errors
 from .api import APIRequest, APIResponse
 from .auth import BearerAuth
+from .iterator import QueryIterator
 from .logging import log
 from .methods import (
     InvocationResponse,
@@ -22,6 +23,7 @@ from .methods import (
     Response,
     ResponseOrError,
 )
+from .methods.base import Query
 from .models import Blob, EmailBodyPart, Event
 from .session import Session
 
@@ -171,6 +173,19 @@ class Client:
         r.raise_for_status()
         with Path.open(Path(file_name), "wb") as f:
             f.write(r.raw.data)
+
+    def query(
+        self,
+        method: Query,
+        page_size: int | None = None,
+    ) -> QueryIterator:
+        """Iterate all results of a JMAP ``query`` method, page by page.
+
+        The supplied query method is copied for each request and is never
+        modified. See ``QueryIterator`` for iteration items, termination
+        behavior and error types.
+        """
+        return QueryIterator(client=self, method=method, page_size=page_size)
 
     @overload
     def request(

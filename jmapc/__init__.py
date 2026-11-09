@@ -6,6 +6,15 @@ from importlib.metadata import version as import_version
 from . import auth, errors, fastmail, methods, models
 from .client import Client, ClientError, EventSourceConfig
 from .errors import Error
+from .iterator import (
+    DEFAULT_QUERY_PAGE_SIZE,
+    QueryDuplicateIdError,
+    QueryIterator,
+    QueryIteratorError,
+    QueryIteratorItem,
+    QueryStalledPositionError,
+    QueryStateChangedError,
+)
 from .methods import Request, ResponseOrError
 from .models import (
     AddedItem,
@@ -52,6 +61,7 @@ except PackageNotFoundError:  # pragma: no cover
     version = "0.0.0"
 
 __all__ = [
+    "DEFAULT_QUERY_PAGE_SIZE",
     "AddedItem",
     "Address",
     "Blob",
@@ -84,6 +94,12 @@ __all__ = [
     "MailboxQueryFilterCondition",
     "MailboxQueryFilterOperator",
     "Operator",
+    "QueryDuplicateIdError",
+    "QueryIterator",
+    "QueryIteratorError",
+    "QueryIteratorItem",
+    "QueryStalledPositionError",
+    "QueryStateChangedError",
     "Ref",
     "Request",
     "ResponseOrError",
