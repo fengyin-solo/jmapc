@@ -48,7 +48,7 @@ class APIResponse(Model):
             decoder=decode_method_responses,
         ),
     )
-    created_ids: list[str] = field(default_factory=list)
+    created_ids: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -65,10 +65,9 @@ class APIRequest(Model):
     )
 
     @staticmethod
-    def from_calls(
-        account_id: str,
+    def invocations_from_calls(
         calls: Sequence[Request] | Sequence[Method] | Method,
-    ) -> APIRequest:
+    ) -> list[Invocation]:
         calls_list = calls if isinstance(calls, Sequence) else [calls]
         invocations: list[Invocation] = []
         # Create Invocations for Methods
@@ -82,13 +81,20 @@ class APIRequest(Model):
             invocations.append(
                 Invocation(id=f"{call_id}.{c.jmap_method_name}", method=c)
             )
+        return invocations
+
+    @staticmethod
+    def from_invocations(
+        account_id: str,
+        invocations: Sequence[Invocation],
+    ) -> APIRequest:
         # Build method calls list from Invocations
         method_calls = [
             (
                 c.method.jmap_method_name,
                 c.method.to_dict(
                     account_id=account_id,
-                    method_calls_slice=invocations[:i],
+                    method_calls_slice=list(invocations[:i]),
                     encode_json=False,
                 ),
                 c.id,
@@ -98,7 +104,17 @@ class APIRequest(Model):
         api_request = APIRequest(
             account_id=account_id, method_calls=method_calls
         )
-        api_request.using |= set().union(
-            *[c.method.using for c in invocations]
-        )
+        if invocations:
+            api_request.using |= set().union(
+                *[c.method.using for c in invocations]
+            )
         return api_request
+
+    @staticmethod
+    def from_calls(
+        account_id: str,
+        calls: Sequence[Request] | Sequence[Method] | Method,
+    ) -> APIRequest:
+        return APIRequest.from_invocations(
+            account_id, APIRequest.invocations_from_calls(calls)
+        )

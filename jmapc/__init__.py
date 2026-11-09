@@ -4,6 +4,12 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as import_version
 
 from . import auth, errors, fastmail, methods, models
+from .batch import (
+    BatchResult,
+    BatchShardingError,
+    ShardFailure,
+    ShardSuccess,
+)
 from .client import Client, ClientError, EventSourceConfig
 from .errors import Error
 from .methods import Request, ResponseOrError
@@ -54,6 +60,8 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "AddedItem",
     "Address",
+    "BatchResult",
+    "BatchShardingError",
     "Blob",
     "Client",
     "ClientError",
@@ -90,6 +98,8 @@ __all__ = [
     "ResultReference",
     "SearchSnippet",
     "SetError",
+    "ShardFailure",
+    "ShardSuccess",
     "StateChange",
     "StrOrRef",
     "Thread",

@@ -13,6 +13,12 @@ import sseclient
 from . import errors
 from .api import APIRequest, APIResponse
 from .auth import BearerAuth
+from .batch import (
+    BatchResult,
+    ShardFailure,
+    ShardSuccess,
+    plan_request_shards,
+)
 from .logging import log
 from .methods import (
     InvocationResponse,
@@ -273,9 +279,90 @@ class Client:
             return result[0].response
         return result
 
+    def request_batch(
+        self,
+        calls: Sequence[Request] | Method,
+        raise_errors: bool = False,  # noqa: FBT001, FBT002
+    ) -> BatchResult:
+        """Send calls in multiple requests per server capability limits.
+
+        Calls are split into shards which respect the JMAP session's
+        ``max_calls_in_request`` and ``max_size_request`` limits. Calls
+        connected by result references are kept in the same shard, and each
+        shard's serialized size is validated before it is sent.
+
+        Shards are sent in invocation order. If a shard fails at the HTTP
+        level or, when ``raise_errors`` is set, at the method level, no
+        further shards are sent, and the result partitions responses into
+        succeeded shards, the failed shard, and unsent shards.
+        """
+        invocations = APIRequest.invocations_from_calls(calls)
+        if not invocations:
+            return BatchResult(succeeded=[], failed=None, unsent=[])
+        core_capabilities = self.jmap_session.capabilities.core
+        # Plan and validate every shard before any HTTP request is sent.
+        shard_requests = plan_request_shards(
+            account_id=self.account_id,
+            invocations=invocations,
+            max_calls_in_request=core_capabilities.max_calls_in_request,
+            max_size_request=core_capabilities.max_size_request,
+        )
+        # Validate all requested JMAP URNs are supported by the server
+        unsupported_urns = (
+            set().union(*[request.using for request in shard_requests])
+            - self.jmap_session.capabilities.urns
+        )
+        if unsupported_urns:
+            log.warning(
+                "URNs in request are not in server capabilities: "
+                f"{', '.join(sorted(unsupported_urns))}"
+            )
+        succeeded: list[ShardSuccess] = []
+        for index, shard_request in enumerate(shard_requests):
+            remaining = shard_requests[index + 1 :]
+            try:
+                api_response = self._send_api_request(shard_request)
+            except requests.exceptions.RequestException as error:
+                return BatchResult(
+                    succeeded=succeeded,
+                    failed=ShardFailure(
+                        index=index, request=shard_request, error=error
+                    ),
+                    unsent=remaining,
+                )
+            if raise_errors and any(
+                isinstance(r.response, errors.Error)
+                for r in api_response.method_responses
+            ):
+                client_error = ClientError(
+                    "Errors found in batch shard method responses",
+                    result=api_response.method_responses,
+                )
+                return BatchResult(
+                    succeeded=succeeded,
+                    failed=ShardFailure(
+                        index=index,
+                        request=shard_request,
+                        error=client_error,
+                        method_responses=api_response.method_responses,
+                    ),
+                    unsent=remaining,
+                )
+            succeeded.append(
+                ShardSuccess(
+                    index=index,
+                    request=shard_request,
+                    response=api_response,
+                )
+            )
+        return BatchResult(succeeded=succeeded, failed=None, unsent=[])
+
     def _api_request(
         self, request: APIRequest
     ) -> Sequence[InvocationResponseOrError]:
+        return self._send_api_request(request).method_responses
+
+    def _send_api_request(self, request: APIRequest) -> APIResponse:
         raw_request = request.to_json()
         log.debug(f"Sending JMAP request {raw_request}")
         r = self.requests_session.post(
@@ -294,4 +381,4 @@ class Client:
                 f'"{self.jmap_session.state}", invalidating cached state'
             )
             del self.jmap_session
-        return api_response.method_responses
+        return api_response
