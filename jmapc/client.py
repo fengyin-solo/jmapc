@@ -13,6 +13,7 @@ import sseclient
 from . import errors
 from .api import APIRequest, APIResponse
 from .auth import BearerAuth
+from .event_subscription import StateEventsConfig, StateEventSubscription
 from .logging import log
 from .methods import (
     InvocationResponse,
@@ -107,6 +108,31 @@ class Client:
             if event.event != "state":
                 continue
             yield Event.load_from_sseclient_event(event)
+
+    def state_events(
+        self,
+        config: StateEventsConfig | None = None,
+    ) -> StateEventSubscription:
+        """Return a recoverable state event subscription.
+
+        The subscription saves a checkpoint of the last delivered
+        EventSource event id and reconnects from that id after a clean
+        stream close or a retryable network error, using bounded
+        exponential backoff. Only ``state`` events are delivered; ping
+        and empty events are ignored.
+        """
+        config = config or StateEventsConfig()
+        event_source_url = self.jmap_session.event_source_url.format(
+            types=config.types,
+            closeafter="no",
+            ping=config.ping,
+        )
+        return StateEventSubscription(
+            url=event_source_url,
+            auth=self.requests_session.auth,
+            config=config,
+            last_event_id=config.last_event_id or self._last_event_id,
+        )
 
     @functools.cached_property
     def requests_session(self) -> requests.Session:

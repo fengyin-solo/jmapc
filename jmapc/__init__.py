@@ -6,6 +6,18 @@ from importlib.metadata import version as import_version
 from . import auth, errors, fastmail, methods, models
 from .client import Client, ClientError, EventSourceConfig
 from .errors import Error
+from .event_subscription import (
+    RECONNECT_REASON_HTTP_ERROR,
+    RECONNECT_REASON_NETWORK_ERROR,
+    RECONNECT_REASON_STREAM_CLOSED,
+    ReconnectRecord,
+    StateEventsAuthError,
+    StateEventsConfig,
+    StateEventsError,
+    StateEventsInvalidEventError,
+    StateEventsRetryLimitError,
+    StateEventSubscription,
+)
 from .methods import Request, ResponseOrError
 from .models import (
     AddedItem,
@@ -52,6 +64,9 @@ except PackageNotFoundError:  # pragma: no cover
     version = "0.0.0"
 
 __all__ = [
+    "RECONNECT_REASON_HTTP_ERROR",
+    "RECONNECT_REASON_NETWORK_ERROR",
+    "RECONNECT_REASON_STREAM_CLOSED",
     "AddedItem",
     "Address",
     "Blob",
@@ -84,6 +99,7 @@ __all__ = [
     "MailboxQueryFilterCondition",
     "MailboxQueryFilterOperator",
     "Operator",
+    "ReconnectRecord",
     "Ref",
     "Request",
     "ResponseOrError",
@@ -91,6 +107,12 @@ __all__ = [
     "SearchSnippet",
     "SetError",
     "StateChange",
+    "StateEventSubscription",
+    "StateEventsAuthError",
+    "StateEventsConfig",
+    "StateEventsError",
+    "StateEventsInvalidEventError",
+    "StateEventsRetryLimitError",
     "StrOrRef",
     "Thread",
     "TypeState",
